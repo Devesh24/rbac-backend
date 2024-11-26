@@ -3,7 +3,6 @@ const User = require('../models/User')
 const { verifyTokenAndAuthorization, verifyTokenAndAdmin } = require('./verifyToken')
 const router = require('express').Router()
 const CryptoJS = require('crypto-js')
-const { isObjectIdOrHexString } = require('mongoose')
 
 
 
@@ -11,9 +10,10 @@ const { isObjectIdOrHexString } = require('mongoose')
 router.post('/token/verify', verifyTokenAndAuthorization, async (req, res) => {
     const {token} = req.body
     try{
+        // Decode and verify the JWT token
         const user = jwt.verify(token, process.env.JWT_SEC)
-        const username = user.username
-        const data = await User.findOne({username: username})
+        const username = user.username // Extract username from token payload
+        const data = await User.findOne({username: username}) // Find the user in the database
         res.status(200).json(data)
     }
     catch(err){
@@ -27,11 +27,12 @@ router.post('/token/verify', verifyTokenAndAuthorization, async (req, res) => {
 router.post('/register', verifyTokenAndAdmin, async (req, res) => {
     const newUser = new User({
         username: req.body.username,
-        password: CryptoJS.AES.encrypt(req.body.password , process.env.PASS_SEC).toString(),
-        type: req.body.type
+        password: CryptoJS.AES.encrypt(req.body.password , process.env.PASS_SEC).toString(), // Encrypt the password
+        type: req.body.type // Set the user type (e.g., admin, faculty, etc)
     })
 
     try{
+        // Check if the username already exists
         const oldUsername = await User.findOne({username: req.body.username})
         if(oldUsername)
         {
@@ -53,7 +54,9 @@ router.post('/register', verifyTokenAndAdmin, async (req, res) => {
 //change type - update
 router.put('/updateuser/:id', verifyTokenAndAdmin, async (req, res) => {
     try{
+        // Encrypt the new password before updating
         const encrypted = {...req.body, password: CryptoJS.AES.encrypt(req.body.password , process.env.PASS_SEC).toString()}
+        // Update the user in the database and return the updated document
         const updatedUser = await User.findByIdAndUpdate(req.params.id, {
             $set: encrypted
         }, {new: true})
@@ -72,11 +75,12 @@ router.get('/getusers', verifyTokenAndAdmin, async (req, res) => {
     try{
         const users = await User.find()
         const usersWithDecryptedPasswords = [];
+        // Decrypt passwords for each user
         for(const user of users)
         {
             const decPass = CryptoJS.AES.decrypt(user.password, process.env.PASS_SEC).toString(CryptoJS.enc.Utf8);
-            const {password, ...others} = user._doc
-            usersWithDecryptedPasswords.push({...others, password: decPass})
+            const {password, ...others} = user._doc // Exclude encrypted password
+            usersWithDecryptedPasswords.push({...others, password: decPass}) // Add decrypted password
         }
         res.status(200).json(usersWithDecryptedPasswords)
     }
